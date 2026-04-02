@@ -16,17 +16,26 @@ from pathlib import Path
 import requests
 
 # ── Конфиг ──────────────────────────────────────────────────────────────────
-AVIATION_DIR = Path("/root/.openclaw/workspace/aviation")
+# Путь к папке aviation — рядом со скриптом или задаётся через AVIATION_DIR env
+AVIATION_DIR = Path(os.environ.get("AVIATION_DIR", Path(__file__).parent))
 QUESTIONS_FILE = AVIATION_DIR / "rosaviatest_questions.json"
 ANSWERED_FILE = AVIATION_DIR / "answered_questions.json"
 WEAK_SPOTS_FILE = AVIATION_DIR / "weak_spots.md"
 PROGRESS_FILE = AVIATION_DIR / "progress.md"
 ACTIVE_QUIZ_FILE = AVIATION_DIR / "active_quiz.json"
 
-BOT_TOKEN = "8762373004:AAFIKzh9ZLQZkH2p56Pp5MmfKFtieVlAS8g"
-CHAT_ID = "-1003518920443"
-THREAD_ID = 3872
+# Telegram — задаётся через переменные окружения (обязательно!)
+# export TG_BOT_TOKEN="..."
+# export TG_CHAT_ID="-100..."
+# export TG_THREAD_ID="3872"
+BOT_TOKEN = os.environ.get("TG_BOT_TOKEN", "")
+CHAT_ID = os.environ.get("TG_CHAT_ID", "")
+THREAD_ID = int(os.environ.get("TG_THREAD_ID", "0"))
 TG_API = f"https://api.telegram.org/bot{BOT_TOKEN}"
+
+if not BOT_TOKEN or not CHAT_ID or not THREAD_ID:
+    print("ERROR: Задайте переменные окружения TG_BOT_TOKEN, TG_CHAT_ID, TG_THREAD_ID", file=sys.stderr)
+    sys.exit(1)
 
 DISCIPLINE_PRIORITY = {
     "правила полетов": 1,

@@ -59,7 +59,18 @@ version: 3.0.0
    echo '{"startDate":"'$(date +%Y-%m-%d)'","questions":{}}' > <WORKSPACE>/aviation/answered_questions.json
    ```
 
-5. Прописать Telegram Bot Token и Chat ID в скриптах (строки `BOT_TOKEN`, `CHAT_ID`, `THREAD_ID`).
+5. Настроить Telegram — скопировать `.env.example` в `.env` и заполнить:
+   ```bash
+   cp .env.example .env
+   # Впиши свой TG_BOT_TOKEN, TG_CHAT_ID, TG_THREAD_ID
+   ```
+   Или экспортируй переменные перед запуском:
+   ```bash
+   export TG_BOT_TOKEN="..."
+   export TG_CHAT_ID="-1001234567890"
+   export TG_THREAD_ID="3872"
+   # или добавь в crontab: SHELL=/bin/bash, TG_BOT_TOKEN=... в начало
+   ```
 
 6. Настроить cron — см. раздел «Расписание».
 
@@ -101,17 +112,21 @@ version: 3.0.0
 Квизы запускаются через **системный crontab** (`crontab -e`):
 
 ```
+# Переменные для всех заданий (замени значения!)
+TG_BOT_TOKEN=your_bot_token
+TG_CHAT_ID=-1001234567890
+TG_THREAD_ID=3872
+AVIATION_DIR=/path/to/workspace/aviation
+
 # Росавиатест (3 раза в день)
-0  5 * * * python3 <WORKSPACE>/aviation/quiz_send.py --type morning
-30 10 * * * python3 <WORKSPACE>/aviation/quiz_send.py --type day
-0  16 * * * python3 <WORKSPACE>/aviation/quiz_send.py --type evening
+0  5  * * * python3 $AVIATION_DIR/quiz_send.py --type morning
+30 10 * * * python3 $AVIATION_DIR/quiz_send.py --type day
+0  16 * * * python3 $AVIATION_DIR/quiz_send.py --type evening
 
 # РЛЭ C-172K (2 раза в день)
-0  7  * * * python3 <WORKSPACE>/aviation/rle_quiz_send.py --type morning
-0  17 * * * python3 <WORKSPACE>/aviation/rle_quiz_send.py --type evening
+0  7  * * * python3 $AVIATION_DIR/rle_quiz_send.py --type morning
+0  17 * * * python3 $AVIATION_DIR/rle_quiz_send.py --type evening
 ```
-
-> Замени `<WORKSPACE>` на реальный путь (обычно `/root/.openclaw/workspace`).
 
 **Стандартное расписание (UTC → МСК UTC+3):**
 

@@ -16,7 +16,9 @@ from datetime import date, timedelta
 from pathlib import Path
 
 # ── Конфиг ──────────────────────────────────────────────────────────────────
-AVIATION_DIR = Path("/root/.openclaw/workspace/aviation")
+import os
+# Путь к папке aviation — рядом со скриптом или через AVIATION_DIR env
+AVIATION_DIR = Path(os.environ.get("AVIATION_DIR", Path(__file__).parent))
 QUESTIONS_FILE = AVIATION_DIR / "rosaviatest_questions.json"
 ANSWERED_FILE = AVIATION_DIR / "answered_questions.json"
 WEAK_SPOTS_FILE = AVIATION_DIR / "weak_spots.md"

@@ -18,17 +18,23 @@ except ImportError:
     sys.exit(1)
 
 # ── Пути ──────────────────────────────────────────────────────────────────────
-BASE_DIR = Path(__file__).parent
+import os
+BASE_DIR = Path(os.environ.get("AVIATION_DIR", Path(__file__).parent))
 QUESTIONS_FILE = BASE_DIR / "rle_questions.json"
 ANSWERED_FILE  = BASE_DIR / "rle_answered.json"
 PROGRESS_FILE  = BASE_DIR / "rle_progress.md"
 ACTIVE_FILE    = BASE_DIR / "rle_active_quiz.json"
 
 # ── Telegram ───────────────────────────────────────────────────────────────────
-BOT_TOKEN  = "8762373004:AAFIKzh9ZLQZkH2p56Pp5MmfKFtieVlAS8g"
-CHAT_ID    = -1003518920443
-THREAD_ID  = 3872
+# Задайте через env: export TG_BOT_TOKEN="..." TG_CHAT_ID="-100..." TG_THREAD_ID="3872"
+BOT_TOKEN  = os.environ.get("TG_BOT_TOKEN", "")
+CHAT_ID    = int(os.environ.get("TG_CHAT_ID", "0"))
+THREAD_ID  = int(os.environ.get("TG_THREAD_ID", "0"))
 TG_API     = f"https://api.telegram.org/bot{BOT_TOKEN}"
+
+if not BOT_TOKEN or not CHAT_ID or not THREAD_ID:
+    print("ERROR: Задайте переменные окружения TG_BOT_TOKEN, TG_CHAT_ID, TG_THREAD_ID", file=sys.stderr)
+    sys.exit(1)
 
 
 # ── Утилиты ────────────────────────────────────────────────────────────────────
