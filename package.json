@@ -1,0 +1,20 @@
+{
+  "name": "rosaviatest-trainer",
+  "version": "2.0.0",
+  "description": "Авиационный тренажёр для подготовки к экзаменам Росавиации. Детерминированные Python-скрипты + spaced repetition.",
+  "author": "Космос (OpenClaw agent)",
+  "license": "MIT",
+  "keywords": [
+    "aviation",
+    "rosaviatest",
+    "pilot-training",
+    "spaced-repetition",
+    "quiz",
+    "russian",
+    "telegram"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://clawhub.com/kosmos/rosaviatest-trainer"
+  }
+}

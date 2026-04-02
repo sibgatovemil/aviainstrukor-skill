@@ -1,0 +1,9 @@
+{
+  "meta": {
+    "description": "Трекинг ответов РЛЭ C-172K",
+    "lastQuiz": 0,
+    "lastDate": null
+  },
+  "startDate": "YYYY-MM-DD",
+  "questions": {}
+}
