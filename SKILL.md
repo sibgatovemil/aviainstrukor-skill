@@ -12,61 +12,138 @@ version: 3.0.0
 
 Скилл для подготовки к экзаменам Росавиации (частный пилот — самолёт) и изучения РЛЭ C-172K. Превращает OpenClaw в авиационного инструктора с детерминированными квизами, spaced repetition и трекингом прогресса.
 
-## ⚠️ Архитектура v2 (детерминированные скрипты)
+## ⚠️ Архитектура v3 (детерминированные скрипты)
 
-**С апреля 2026 квизы полностью детерминированы:**
+Квизы отправляются **Python-скриптами** напрямую через Telegram Bot API. LLM не участвует в отправке вопросов.
 
-- `aviation/quiz_send.py` — отправка квизов Росавиатеста (5 вопросов) через Telegram Bot API
-- `aviation/quiz_update.py` — обновление трекинга после ответа (spaced repetition)
-- `aviation/rle_quiz_send.py` — отправка РЛЭ C-172K квизов (priority-based)
-- `aviation/rle_quiz_update.py` — обновление трекинга РЛЭ
+- `scripts/quiz_send.py` — отправка квиза Росавиатеста (5 вопросов)
+- `scripts/quiz_update.py` — обновление трекинга после ответа (spaced repetition)
+- `scripts/rle_quiz_send.py` — отправка РЛЭ C-172K квиза (priority-based)
+- `scripts/rle_quiz_update.py` — обновление трекинга РЛЭ
 
 **LLM используется ТОЛЬКО для:**
 - Объяснений после ответа (почему правильно/неправильно)
 - Мнемоник и запоминалок
 - Визуальных объяснений (поиск иллюстраций, разбор схем)
 
-**Квизы приходят автоматически** через системный cron:
-- 05:00 UTC (08:00 МСК) — Росавиатест утро
-- 10:30 UTC (13:30 МСК) — Росавиатест день
-- 16:00 UTC (19:00 МСК) — Росавиатест вечер
-- 07:00 UTC (10:00 МСК) — РЛЭ C-172K утро
-- 17:00 UTC (20:00 МСК) — РЛЭ C-172K вечер
-
 ## Первый запуск
 
-При первом использовании скилла:
+1. Установить зависимость:
+   ```bash
+   pip3 install requests
+   ```
 
-1. Установить `requests` если не установлен: `pip3 install requests`
-2. Создать структуру файлов в workspace из шаблонов в `assets/`:
-   - `aviation/progress.md` — из `assets/progress-template.md`
-   - `aviation/weak_spots.md` — из `assets/weak-spots-template.md`
-   - `aviation/rle_progress.md` — из `assets/rle-progress-template.md`
-   - `aviation/rle_answered.json` — из `assets/rle-answered-template.json`
-3. Скопировать скрипты из `scripts/` в `aviation/`
-4. Настроить cron (см. раздел «Ежедневные сессии»)
+2. Скопировать базы вопросов в workspace:
+   ```bash
+   cp <SKILL_DIR>/data/rosaviatest_questions.json <WORKSPACE>/aviation/
+   cp <SKILL_DIR>/data/rle_questions.json <WORKSPACE>/aviation/
+   ```
 
-> Вопросы уже готовы: `data/rosaviatest_questions.json` (693 вопроса) + `data/rle_questions.json` (48 вопросов). Ничего дополнительно настраивать не нужно — сразу начинай квизы.
+3. Скопировать скрипты в workspace:
+   ```bash
+   cp <SKILL_DIR>/scripts/quiz_send.py <WORKSPACE>/aviation/
+   cp <SKILL_DIR>/scripts/quiz_update.py <WORKSPACE>/aviation/
+   cp <SKILL_DIR>/scripts/rle_quiz_send.py <WORKSPACE>/aviation/
+   cp <SKILL_DIR>/scripts/rle_quiz_update.py <WORKSPACE>/aviation/
+   ```
+
+4. Создать файлы трекинга из шаблонов:
+   ```bash
+   cp <SKILL_DIR>/assets/progress-template.md <WORKSPACE>/aviation/progress.md
+   cp <SKILL_DIR>/assets/weak-spots-template.md <WORKSPACE>/aviation/weak_spots.md
+   cp <SKILL_DIR>/assets/rle-progress-template.md <WORKSPACE>/aviation/rle_progress.md
+   cp <SKILL_DIR>/assets/rle-answered-template.json <WORKSPACE>/aviation/rle_answered.json
+   ```
+   Инициализировать `answered_questions.json`:
+   ```bash
+   echo '{"startDate":"'$(date +%Y-%m-%d)'","questions":{}}' > <WORKSPACE>/aviation/answered_questions.json
+   ```
+
+5. Прописать Telegram Bot Token и Chat ID в скриптах (строки `BOT_TOKEN`, `CHAT_ID`, `THREAD_ID`).
+
+6. Настроить cron — см. раздел «Расписание».
+
+> Базы вопросов готовы к использованию: 693 вопроса Росавиатеста + 48 вопросов РЛЭ C-172K.
+
+## Обновление с предыдущих версий на v3
+
+### v1 → v3 (LLM-квизы → скрипты)
+
+1. Установить `requests`: `pip3 install requests`
+2. Скопировать скрипты из `scripts/` в `<WORKSPACE>/aviation/` (см. шаг 3 выше)
+3. Скопировать базы вопросов из `data/` в `<WORKSPACE>/aviation/` (шаг 2 выше)
+4. Создать файлы трекинга для РЛЭ (шаг 4 выше — только rle_*)
+5. Удалить старые OpenClaw cron'ы (если есть):
+   ```bash
+   # Проверь через OpenClaw CLI или интерфейс
+   # Удали все jobs с "aviation" или "quiz" в названии
+   ```
+6. Настроить системный cron (шаг 6 / раздел «Расписание»)
+
+> `progress.md`, `weak_spots.md`, `answered_questions.json` — **сохранить без изменений**, они совместимы с v3.
+
+### v2 → v3
+
+1. Перезаписать скрипты из `scripts/` (формат изменился):
+   ```bash
+   cp <SKILL_DIR>/scripts/*.py <WORKSPACE>/aviation/
+   ```
+2. Добавить файлы для РЛЭ (если ещё не добавлены):
+   ```bash
+   cp <SKILL_DIR>/data/rle_questions.json <WORKSPACE>/aviation/
+   cp <SKILL_DIR>/assets/rle-progress-template.md <WORKSPACE>/aviation/rle_progress.md
+   cp <SKILL_DIR>/assets/rle-answered-template.json <WORKSPACE>/aviation/rle_answered.json
+   ```
+3. Остальные файлы (progress.md, weak_spots.md, answered_questions.json) — без изменений.
+
+## Расписание
+
+Квизы запускаются через **системный crontab** (`crontab -e`):
+
+```
+# Росавиатест (3 раза в день)
+0  5 * * * python3 <WORKSPACE>/aviation/quiz_send.py --type morning
+30 10 * * * python3 <WORKSPACE>/aviation/quiz_send.py --type day
+0  16 * * * python3 <WORKSPACE>/aviation/quiz_send.py --type evening
+
+# РЛЭ C-172K (2 раза в день)
+0  7  * * * python3 <WORKSPACE>/aviation/rle_quiz_send.py --type morning
+0  17 * * * python3 <WORKSPACE>/aviation/rle_quiz_send.py --type evening
+```
+
+> Замени `<WORKSPACE>` на реальный путь (обычно `/root/.openclaw/workspace`).
+
+**Стандартное расписание (UTC → МСК UTC+3):**
+
+| UTC | МСК | Что |
+|-----|-----|-----|
+| 05:00 | 08:00 | Росавиатест — утро |
+| 07:00 | 10:00 | РЛЭ C-172K — утро |
+| 10:30 | 13:30 | Росавиатест — день |
+| 16:00 | 19:00 | Росавиатест — вечер |
+| 17:00 | 20:00 | РЛЭ C-172K — вечер |
 
 ## Источники данных
 
 ### Росавиатест (693 вопроса)
-- `aviation/rosaviatest_questions.json` — база вопросов (ЕДИНСТВЕННЫЙ источник)
+- `aviation/rosaviatest_questions.json` — база вопросов (ЕДИНСТВЕННЫЙ источник, не генерировать!)
 - `aviation/answered_questions.json` — трекинг ответов + spaced repetition
 - `aviation/weak_spots.md` — слабые места (⏳ статус, даты повтора)
 - `aviation/progress.md` — история квизов
+- `aviation/active_quiz.json` — текущий активный квиз
 
 ### РЛЭ C-172K (48 вопросов)
-- `aviation/rle_questions.json` — вопросы по РЛЭ (скорости, ограничения, системы)
-- `aviation/rle_answered.json` — трекинг ответов (timesAnswered, без spaced repetition)
-- `aviation/rle_progress.md` — история РЛЭ-квизов
+- `aviation/rle_questions.json` — база вопросов РЛЭ (ЕДИНСТВЕННЫЙ источник, не генерировать!)
+- `aviation/rle_answered.json` — трекинг ответов (timesAnswered)
+- `aviation/rle_progress.md` — история квизов
+- `aviation/rle_active_quiz.json` — текущий активный РЛЭ-квиз
 - `data/RLE_C172K_RA-0794G.docx` — оригинальный документ РЛЭ (источник вопросов)
 
 ## Режимы работы
 
-### 1. Квизы (автоматические, через скрипты)
+### 1. Квизы (автоматические)
 
-**Формат вопроса (устанавливается скриптом):**
+**Формат вопроса Росавиатест (задаётся скриптом):**
 
 ```
 📝 Вопрос X/5 | Росавиатест #orderNum
@@ -81,73 +158,77 @@ C) Вариант C
 
 Inline-кнопки: A, B, C (callback_data: `quiz_{questionId}_A`)
 
-**Приём ответов:**
-- Callback от inline-кнопки → я вызываю `quiz_update.py`, получаю JSON с результатом
-- Вывожу: ✅ / ❌ + объяснение + мнемонику (если ошибка)
-- После 5 ответов → итог: `X/5 (XX%)`
+**Формат вопроса РЛЭ:**
 
-**НИКОГДА не генерирую вопросы.** Только обратная связь после ответа.
+```
+📝 РЛЭ Вопрос X/5 | orderNum
+discipline
+
+Текст вопроса
+
+A) Вариант A
+B) Вариант B
+C) Вариант C
+```
+
+Inline-кнопки: A, B, C (callback_data: `rle_{questionId}_A`)
+
+**Обработка ответа (callback от кнопки):**
+1. Вызвать `quiz_update.py` / `rle_quiz_update.py` с параметрами
+2. Получить JSON с результатом (correct, correctAnswer, explanation...)
+3. Вывести: ✅ / ❌ + объяснение + мнемонику (если ошибка)
+4. После 5 ответов → итог: `X/5 (XX%)`
+
+**НИКОГДА не генерировать вопросы.** Только обратная связь после ответа.
 
 ### 2. Spaced Repetition (Росавиатест)
 
 Файл: `aviation/weak_spots.md`
 
 **Интервалы повторения:**
-- Ошибка (новая) → `⏳ (2026-MM-DD)` через +1 день
-- Ошибка (повторная) → сброс на +1 день
-- 1-й правильный → +7 дней
-- 2-й правильный → +30 дней
-- 3-й правильный → `✅ Закреплено`
+| Событие | Следующий повтор |
+|---------|-----------------|
+| Ошибка (первая) | +1 день, статус ⏳ |
+| Ошибка (повторная) | сброс на +1 день |
+| 1-й правильный ответ | +7 дней |
+| 2-й правильный ответ | +30 дней |
+| 3-й правильный ответ | ✅ Закреплено |
 
-**Логика квиза:**
-- 1-2 вопроса из weak_spots (⏳, дата <= сегодня)
+**Логика выбора 5 вопросов:**
+- 1-2 вопроса из weak_spots (статус ⏳, дата повтора ≤ сегодня)
 - 3-4 новых вопроса (приоритет: правила полётов > метеорология > аэронавигация)
-- Максимум 3 вопроса из одной дисциплины
+- Максимум 3 вопроса из одной дисциплины за квиз
 
-### 3. Priority-Based Повторение (РЛЭ C-172K)
+### 3. Priority-Based (РЛЭ C-172K)
 
 **Приоритеты:**
-- Priority 1 (21 вопрос): Скорости и ограничения (ВСЕГДА 1-2 в каждом квизе)
-- Priority 2 (12): Двигатель и системы
-- Priority 3 (9): Топливо и масло
-- Priority 4 (6): Процедуры и чек-листы
+| P | Вопросов | Тема |
+|---|---------|------|
+| 1 | 21 | Скорости и ограничения — **всегда 1-2 в квизе** |
+| 2 | 12 | Двигатель и системы |
+| 3 | 9  | Топливо и масло |
+| 4 | 6  | Процедуры и чек-листы |
 
-**Дни обучения:**
-- Дни 1-3 → priority=1
-- Дни 4-6 → priority=2
-- Дни 7-9 → priority=3
-- Дни 10-14 → priority=4
-- После 14 → циклически
+**День обучения → целевой приоритет:**
+- Дни 1-3 → P1, дни 4-6 → P2, дни 7-9 → P3, дни 10-14 → P4, далее циклически
 
-**Логика квиза:**
-- 1-2 вопроса из P1 (обязательно)
-- 3-4 вопроса из текущего приоритета по дню
-- Сортировка: сначала никогда не отвеченные, потом по `timesAnswered` возрастающий
+**Выбор 5 вопросов:**
+- 2 из P1 (обязательно, наименьший timesAnswered)
+- 3 из целевого приоритета (сначала никогда не отвеченные, потом по timesAnswered ↑)
 
 ### 4. Визуальные объяснения
 
 При разборе визуальных тем (аэродинамика, приборы, метеокарты, навигация):
 1. Искать иллюстрацию через web_search
-2. Проверить через image tool что содержимое соответствует теме
+2. Проверить через image tool соответствие теме
 3. Только после проверки — отправлять пользователю
 4. На текстовых темах (законодательство, правила) — только текст
-
-### 5. Ежедневные сессии (автоматические)
-
-**Росавиатест** — 3 раза в день по 5 вопросов:
-- 08:00 МСК (утро) — микс тем + повторы слабых мест
-- 13:30 МСК (день) — фокус на одной дисциплине
-- 19:00 МСК (вечер) — микс + повторы дня
-
-**РЛЭ C-172K** — 2 раза в день по 5 вопросов:
-- 10:00 МСК (утро) — priority по дню обучения
-- 20:00 МСК (вечер) — priority по дню обучения
 
 ## Дисциплины (Частный пилот — самолёт, 693 вопроса)
 
 1. Основы полёта (~80 вопросов)
 2. Аэронавигация / самолётовождение (~90)
-3. Метеорология — сводки, карты, прогнозы, коды (~20)
+3. Метеорология — сводки, карты, прогнозы (~20)
 4. Human Factors (~16)
 5. Правила полётов VFR (~8)
 6. Эксплуатация и ограничения ВС (~12)
@@ -183,90 +264,66 @@ Inline-кнопки: A, B, C (callback_data: `quiz_{questionId}_A`)
 - Без подсказок во время теста
 - Разбор ошибок ПОСЛЕ завершения
 
-## Файлы
-
-Скилл создаёт следующую структуру в workspace:
-
-```
-aviation/
-├── rosaviatest_questions.json  ← база вопросов Росавиатеста (693)
-├── answered_questions.json     ← трекинг ответов + spaced repetition
-├── weak_spots.md               ← слабые места (⏳ / ✅)
-├── progress.md                 ← история квизов
-├── active_quiz.json            ← текущий активный квиз
-├── quiz_send.py                ← скрипт отправки квиза (детерминированный)
-├── quiz_update.py              ← скрипт обновления трекинга
-├── rle_questions.json          ← база вопросов РЛЭ C-172K (48)
-├── rle_answered.json           ← трекинг ответов РЛЭ
-├── rle_progress.md             ← история РЛЭ-квизов
-├── rle_active_quiz.json        ← текущий активный РЛЭ-квиз
-├── rle_quiz_send.py            ← скрипт отправки РЛЭ-квиза
-├── rle_quiz_update.py          ← скрипт обновления трекинга РЛЭ
-├── documents/                  ← загруженные документы
-└── images/                     ← картинки и схемы
-```
-
-Шаблоны файлов — в `assets/`.
-
-## Обновление с v1 на v2
-
-Если пользователь переходит с LLM-версии:
-
-1. Скопировать существующие `progress.md`, `weak_spots.md`, `answered_questions.json`
-2. Установить `requests`: `pip3 install requests`
-3. Удалить старые OpenClaw cron'ы (если есть):
-   ```bash
-   openclaw cron list | grep aviation
-   openclaw cron remove <jobId>
-   ```
-4. Добавить системные cron'ы через `crontab -e`:
-   ```
-   0 5 * * * python3 /root/.openclaw/workspace/aviation/quiz_send.py --type morning
-   30 10 * * * python3 /root/.openclaw/workspace/aviation/quiz_send.py --type day
-   0 16 * * * python3 /root/.openclaw/workspace/aviation/quiz_send.py --type evening
-   0 7 * * * python3 /root/.openclaw/workspace/aviation/rle_quiz_send.py --type morning
-   0 17 * * * python3 /root/.openclaw/workspace/aviation/rle_quiz_send.py --type evening
-   ```
-
 ## Технические детали
 
-### Формат callback_data
-- Росавиатест: `quiz_{questionId}_A` (например `quiz_258_B`)
-- РЛЭ: `rle_{questionId}_C` (например `rle_5_A`)
+### Callback_data
+- Росавиатест: `quiz_{questionId}_A` (пример: `quiz_258_B`)
+- РЛЭ: `rle_{questionId}_A` (пример: `rle_5_C`)
 
-### Обработка ответа (пример)
+### Вызов quiz_update.py из обработчика ответа
 ```python
+import subprocess, json
+
 result = subprocess.run(
     ["python3", "aviation/quiz_update.py",
      "--question-id", question_id,
      "--answer", answer,
-     "--quiz-num", quiz_num],
+     "--quiz-num", str(quiz_num)],
     capture_output=True, text=True
 )
 data = json.loads(result.stdout)
-# data содержит: correct, correctAnswer, explanation, timesAnswered
+# data: correct, correctAnswer, correctAnswerText, givenAnswer, explanation, disciplineName, nextReview
 ```
 
-### Безопасность
-- Telegram Bot Token хранится в скриптах (не в конфиге OpenClaw)
-- Callback_data валидируется: только допустимые questionId из базы
-- JSONDecodeError обрабатывается (файлы могут быть повреждены)
-- Network errors обрабатываются (requests.exceptions.RequestException)
+Для РЛЭ — аналогично через `rle_quiz_update.py`.
+
+### Структура файлов в workspace
+```
+aviation/
+├── rosaviatest_questions.json  ← 693 вопроса (не редактировать)
+├── answered_questions.json     ← трекинг + spaced repetition
+├── weak_spots.md               ← слабые места (⏳ / ✅)
+├── progress.md                 ← история квизов
+├── active_quiz.json            ← активный квиз
+├── quiz_send.py                ← отправка квиза
+├── quiz_update.py              ← обновление трекинга
+├── rle_questions.json          ← 48 вопросов РЛЭ (не редактировать)
+├── rle_answered.json           ← трекинг РЛЭ
+├── rle_progress.md             ← история РЛЭ-квизов
+├── rle_active_quiz.json        ← активный РЛЭ-квиз
+├── rle_quiz_send.py            ← отправка РЛЭ-квиза
+├── rle_quiz_update.py          ← обновление трекинга РЛЭ
+├── documents/                  ← загруженные документы
+└── images/                     ← картинки и схемы
+```
 
 ## Troubleshooting
 
 **Квизы не приходят:**
-1. Проверь crontab: `crontab -l | grep quiz`
-2. Проверь логи: `grep quiz /var/log/syslog` (или journalctl)
-3. Запусти вручную: `python3 aviation/quiz_send.py --type morning`
+```bash
+crontab -l | grep quiz          # проверить cron
+python3 aviation/quiz_send.py --type morning  # запустить вручную
+```
 
 **Двойные квизы:**
-- Удали старые OpenClaw cron'ы: `openclaw cron list`, `openclaw cron remove <id>`
+- Проверить нет ли старых OpenClaw cron'ов через OpenClaw CLI / панель управления и удалить их
 
-**Callback не работает:**
-- Проверь что скрипт `quiz_update.py` исполняемый: `chmod +x aviation/quiz_update.py`
-- Проверь формат callback_data: должен быть `quiz_{id}_A`, не `quiz-{id}-A`
+**Callback не обрабатывается:**
+- Проверить формат: `quiz_{id}_A` (подчёркивания, не дефисы)
+- Убедиться что `active_quiz.json` существует и не пустой
 
-**Файлы не обновляются:**
-- Проверь права на запись: `ls -la aviation/`
-- Проверь JSON валидность: `python3 -m json.tool aviation/answered_questions.json`
+**JSON повреждён:**
+```bash
+python3 -m json.tool aviation/answered_questions.json
+python3 -m json.tool aviation/rle_answered.json
+```
