@@ -287,6 +287,66 @@ def update_weak_spot_correct(
         return "mastered"
 
 
+# ── Progress builder ────────────────────────────────────────────────────────
+
+def build_quiz_progress(quiz_num: int, current_qid: int, current_correct: bool, aviation_dir: Path) -> str:
+    """Построить строку прогресса квиза, например: Прогресс Quiz #32: ✅❌✅ (2/3 отвечено)"""
+    try:
+        active_quiz_path = aviation_dir / "active_quiz.json"
+        if not active_quiz_path.exists():
+            return ""
+        with open(active_quiz_path, encoding="utf-8") as f:
+            active_quiz = json.load(f)
+
+        # active_quiz может быть dict с полем questions или просто list
+        if isinstance(active_quiz, dict):
+            quiz_questions = active_quiz.get("questions", [])
+        else:
+            quiz_questions = active_quiz
+
+        if not quiz_questions:
+            return ""
+
+        # Загрузить answered_questions.json
+        answered_path = aviation_dir / "answered_questions.json"
+        if not answered_path.exists():
+            return ""
+        with open(answered_path, encoding="utf-8") as f:
+            answered_raw = json.load(f)
+
+        if isinstance(answered_raw, dict) and "questions" in answered_raw:
+            answered_map = answered_raw["questions"]
+        else:
+            answered_map = answered_raw
+
+        icons = []
+        answered_count = 0
+        for _q in quiz_questions:
+            qid = _q["questionId"] if isinstance(_q, dict) else _q
+            qid_str = str(qid)
+            if qid == current_qid or qid_str == str(current_qid):
+                # Текущий вопрос — используем current_correct
+                icons.append("✅" if current_correct else "❌")
+                answered_count += 1
+            elif qid_str in answered_map:
+                entry = answered_map[qid_str]
+                # Проверяем quizNum
+                if isinstance(entry, dict) and entry.get("quizNum") == quiz_num:
+                    icons.append("✅" if entry.get("correct") else "❌")
+                    answered_count += 1
+                else:
+                    icons.append("⬜")
+            else:
+                icons.append("⬜")
+
+        total = len(quiz_questions)
+        icons_str = "".join(icons)
+        return f"Прогресс Quiz #{quiz_num}: {icons_str} ({answered_count}/{total} отвечено)"
+    except Exception as e:
+        eprint(f"[WARN] build_quiz_progress failed: {e}")
+        return ""
+
+
 # ── Main ─────────────────────────────────────────────────────────────────────
 
 def main():
@@ -373,8 +433,44 @@ def main():
     ws.save()
 
     # ── Шаг 4: Вывод JSON в stdout ────────────────────────────────────────────
+    question_text = q.get("text", "")
+    progress_line = build_quiz_progress(quiz_num, question_id, is_correct, AVIATION_DIR)
+    sep = "\u2500\u2500\u2500"
+
+    if is_correct:
+        reply_parts = [
+            "\u2705 \u041f\u0440\u0430\u0432\u0438\u043b\u044c\u043d\u043e!",
+            "",
+            f"\u0412\u043e\u043f\u0440\u043e\u0441 #{question_id}: {question_text}",
+            "",
+            f"\u041f\u0440\u0430\u0432\u0438\u043b\u044c\u043d\u044b\u0439 \u043e\u0442\u0432\u0435\u0442: {correct_answer}) {correct_answer_text}",
+            "",
+            sep,
+            "",
+            f"\U0001f4d6 {explanation}" if explanation else "",
+        ]
+    else:
+        reply_parts = [
+            f"\u274c \u041d\u0435\u0432\u0435\u0440\u043d\u043e! \u041f\u0440\u0430\u0432\u0438\u043b\u044c\u043d\u044b\u0439: {correct_answer}) {correct_answer_text}",
+            "",
+            f"\u0412\u043e\u043f\u0440\u043e\u0441 #{question_id}: {question_text}",
+            "",
+            f"\u0422\u0432\u043e\u0439 \u043e\u0442\u0432\u0435\u0442: {given_answer}) {given_answer_text}",
+            "",
+            sep,
+            "",
+            f"\U0001f4d6 {explanation}" if explanation else "",
+        ]
+
+    if progress_line:
+        reply_parts += ["", sep, "", progress_line]
+
+    # Убрать пустые строки в конце и склеить
+    reply_text = "\n".join(reply_parts).rstrip()
+
     result = {
         "questionId": question_id,
+        "questionText": question_text,
         "correct": is_correct,
         "correctAnswer": correct_answer,
         "correctAnswerText": correct_answer_text,
@@ -384,6 +480,7 @@ def main():
         "explanation": explanation or "",
         "wasInWeakSpots": was_in_weak_spots,
         "weakSpotAction": weak_spot_action,
+        "replyText": reply_text,
     }
 
     print(json.dumps(result, ensure_ascii=False, indent=2))

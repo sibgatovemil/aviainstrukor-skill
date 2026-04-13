@@ -9,12 +9,13 @@ Stderr: статусные сообщения
 
 import sys
 import json
+import os
 import argparse
 from datetime import date
 from pathlib import Path
 
 # ── Пути ──────────────────────────────────────────────────────────────────────
-BASE_DIR       = Path(__file__).parent
+BASE_DIR       = Path(os.environ.get("AVIATION_DIR", Path(__file__).parent))
 QUESTIONS_FILE = BASE_DIR / "rle_questions.json"
 ANSWERED_FILE  = BASE_DIR / "rle_answered.json"
 
@@ -33,6 +34,64 @@ def load_json(path: Path) -> dict | list:
 
 def save_json(path: Path, data):
     path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+
+
+# ── Progress builder ──────────────────────────────────────────────────────────
+
+def build_rle_quiz_progress(quiz_num: int, current_qid: str, current_correct: bool, aviation_dir: Path) -> str:
+    """Построить строку прогресса РЛЭ-квиза, например: Прогресс РЛЭ Quiz #4: ✅❌✅ (2/3 отвечено)"""
+    try:
+        active_quiz_path = aviation_dir / "rle_active_quiz.json"
+        if not active_quiz_path.exists():
+            return ""
+        with open(active_quiz_path, encoding="utf-8") as f:
+            active_quiz = json.load(f)
+
+        if isinstance(active_quiz, dict):
+            quiz_questions = active_quiz.get("questions", [])
+        else:
+            quiz_questions = active_quiz
+
+        if not quiz_questions:
+            return ""
+
+        # Загрузить rle_answered.json
+        answered_path = aviation_dir / "rle_answered.json"
+        if not answered_path.exists():
+            return ""
+        with open(answered_path, encoding="utf-8") as f:
+            answered_raw = json.load(f)
+
+        # rle_answered.json: {"rle_2": {"correct": true, "quizNum": 4, ...}}
+        # или {"questions": {...}}
+        if isinstance(answered_raw, dict) and "questions" in answered_raw:
+            answered_map = answered_raw["questions"]
+        else:
+            answered_map = answered_raw
+
+        icons = []
+        answered_count = 0
+        for _q in quiz_questions:
+            qid = _q["questionId"] if isinstance(_q, dict) else _q
+            if qid == current_qid:
+                icons.append("✅" if current_correct else "❌")
+                answered_count += 1
+            elif qid in answered_map:
+                entry = answered_map[qid]
+                if isinstance(entry, dict) and entry.get("quizNum") == quiz_num:
+                    icons.append("✅" if entry.get("correct") else "❌")
+                    answered_count += 1
+                else:
+                    icons.append("⬜")
+            else:
+                icons.append("⬜")
+
+        total = len(quiz_questions)
+        icons_str = "".join(icons)
+        return f"Прогресс РЛЭ Quiz #{quiz_num}: {icons_str} ({answered_count}/{total} отвечено)"
+    except Exception as e:
+        print(f"[WARN] build_rle_quiz_progress failed: {e}", file=sys.stderr)
+        return ""
 
 
 # ── Main ───────────────────────────────────────────────────────────────────────
@@ -95,17 +154,57 @@ def main():
     print(f"[INFO] Трекинг обновлён: {question_id}, timesAnswered={times_answered}", file=sys.stderr)
 
     # Результат в stdout
+    correct_answer_text = question["answers"].get(correct_answer, "")
+    given_answer_text = question["answers"].get(given_answer, "")
+    explanation = question.get("explanation", "")
+    question_text = question.get("text", "")
+
+    progress_line = build_rle_quiz_progress(quiz_num, question_id, is_correct, BASE_DIR)
+    sep = "───"
+
+    if is_correct:
+        reply_parts = [
+            "✅ Правильно!",
+            "",
+            f"Вопрос #{question_id}: {question_text}",
+            "",
+            f"Правильный ответ: {correct_answer}) {correct_answer_text}",
+            "",
+            sep,
+            "",
+            f"📖 {explanation}" if explanation else "",
+        ]
+    else:
+        reply_parts = [
+            f"❌ Неверно! Правильный: {correct_answer}) {correct_answer_text}",
+            "",
+            f"Вопрос #{question_id}: {question_text}",
+            "",
+            f"Твой ответ: {given_answer}) {given_answer_text}",
+            "",
+            sep,
+            "",
+            f"📖 {explanation}" if explanation else "",
+        ]
+
+    if progress_line:
+        reply_parts += ["", sep, "", progress_line]
+
+    reply_text = "\n".join(reply_parts).rstrip()
+
     result = {
         "questionId": question_id,
+        "questionText": question_text,
         "correct": is_correct,
         "correctAnswer": correct_answer,
-        "correctAnswerText": question["answers"].get(correct_answer, ""),
+        "correctAnswerText": correct_answer_text,
         "givenAnswer": given_answer,
-        "givenAnswerText": question["answers"].get(given_answer, ""),
+        "givenAnswerText": given_answer_text,
         "discipline": question.get("discipline", ""),
         "priority": question.get("priority", 0),
-        "explanation": question.get("explanation", ""),
+        "explanation": explanation,
         "timesAnswered": times_answered,
+        "replyText": reply_text,
     }
 
     print(json.dumps(result, ensure_ascii=False, indent=2))
